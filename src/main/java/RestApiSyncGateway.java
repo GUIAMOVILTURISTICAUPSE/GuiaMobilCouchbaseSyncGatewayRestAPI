@@ -15,6 +15,7 @@ import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.HttpClientBuilder;
@@ -75,6 +76,9 @@ public class RestApiSyncGateway implements Filter {
     @Value("${gateway.hostname}")
     private String gatewayHostname;
     
+    @Value("${gateway.database}")
+    private String gatewayDatabase;
+    
     @Value("${server.username}")
     private String serverUsername;
 
@@ -82,9 +86,9 @@ public class RestApiSyncGateway implements Filter {
     {
     	CouchbaseEnvironment env = DefaultCouchbaseEnvironment.builder()
     		    //this set the IO socket timeout globally, to 45s
-    		    .socketConnectTimeout((int) TimeUnit.SECONDS.toMillis(90))
+    		    .socketConnectTimeout((int) TimeUnit.SECONDS.toMillis(1000))
     		    //this sets the connection timeout for openBucket calls globally (unless a particular call provides its own timeout)
-    		    .connectTimeout(TimeUnit.SECONDS.toMillis(100))
+    		    .connectTimeout(TimeUnit.SECONDS.toMillis(1000))
     		    .build();
     	
     	
@@ -105,7 +109,10 @@ public class RestApiSyncGateway implements Filter {
 
     public @Bean
     Bucket bucket() {
-    	return cluster().openBucket(serverBucket);
+    	System.out.println("Abriendo bucket: " + serverBucket + "en servidor: " + serverHostname);
+    	Bucket b = cluster().openBucket(serverBucket);
+    	System.out.println("Bucket: " + b.toString());
+    	return b;
         //return cluster().openBucket(serverBucket, serverBucketPassword);
     }
 
@@ -143,7 +150,45 @@ public class RestApiSyncGateway implements Filter {
             return new ResponseEntity<String>(JsonObject.create().put("error", 400).put("message", "El recurso debe tener datos de geolocalizacion").toString(), HttpStatus.BAD_REQUEST);
         }
         JsonObject data = JsonObject.create().put("_id", jsonData.get("nombre")).put("descripcion", jsonData.get("descripcion")).put("documentClass", "class es.codigoandroid.pojos.Recursos").put("posicion", jsonData.get("posicion"));
-        JsonObject response = makePostRequest("http://" + gatewayHostname + ":4984/" + bucket().name() + "/", data.toString());
+        JsonObject response = makePostRequest("http://" + gatewayHostname + ":4984/" + gatewayDatabase + "/", data.toString());
+        return new ResponseEntity<String>(response.getObject("content").toString(), HttpStatus.valueOf(response.getInt("status")));
+    }
+    
+    @RequestMapping(value="/recursos", method= RequestMethod.PUT)
+    public Object updateRecurso(@RequestBody String json) {
+    	System.out.println("Entro a put request de recurso");
+        JsonObject jsonData = JsonObject.fromJson(json);
+        String rev;
+        if(!jsonData.containsKey("_sync")) {
+            return new ResponseEntity<String>(JsonObject.create().put("error", 400).put("message", "El recurso debe tener una revision para hacer put").toString(), HttpStatus.BAD_REQUEST);
+        }else{
+        	//rev = jsonData.getString("_sync");
+        	JsonObject jo = jsonData.getObject("_sync");
+        	rev = jo.getString("rev");
+        	System.out.println("Rev: " + rev);
+        }
+        if(jsonData.containsKey("_sync")) {
+        	jsonData.removeKey("_sync");
+        }
+        if(jsonData.containsKey("_attachments")) {
+        	jsonData.removeKey("_attachments");
+        }
+        /*JsonObject data = JsonObject.create().put("_id", jsonData.get("_id")).put("descripcion", jsonData.get("descripcion")).put("documentClass", "class es.codigoandroid.pojos.Recursos")
+        		.put("posicion", jsonData.get("posicion"))
+        		.put("comentarios",jsonData.get("comentarios"))
+        		.put("costoRecursos",jsonData.get("costoRecursos"))
+        		.put("descripcion", jsonData.get("descripcion"))
+        		.put("direccion", jsonData.get("direccion"))
+        		.put("documentClass", jsonData.get("class es.codigoandroid.pojos.Recursos"))
+        		.put("_attachments",jsonData.get("_attachments"));
+        		 * 
+        		 */
+        
+        JsonObject data = jsonData;
+        String putRequest = "http://" + gatewayHostname + ":4984/" + gatewayDatabase + "/" + jsonData.get("_id") + "?rev="+rev;
+        System.out.println("PutRequest: " + putRequest);
+        System.out.println("Data: " + data.toString());
+        JsonObject response = makePutRequest(putRequest, data.toString());
         return new ResponseEntity<String>(response.getObject("content").toString(), HttpStatus.valueOf(response.getInt("status")));
     }
 
@@ -154,6 +199,27 @@ public class RestApiSyncGateway implements Filter {
             HttpPost post = new HttpPost(url);
             post.setEntity(new StringEntity(body, ContentType.create("application/json")));
             HttpResponse response = client.execute(post);
+            BufferedReader rd = new BufferedReader(new InputStreamReader(response.getEntity().getContent()));
+            String line = "";
+            String result = "";
+            while ((line = rd.readLine()) != null) {
+                result += line;
+            }
+            jsonResult.put("status", response.getStatusLine().getStatusCode());
+            jsonResult.put("content", JsonObject.fromJson(result));
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return jsonResult;
+    }
+    
+    private JsonObject makePutRequest(String url, String body) {
+        JsonObject jsonResult = JsonObject.create();
+        try {
+            HttpClient client = HttpClientBuilder.create().build();
+            HttpPut put = new HttpPut(url);
+            put.setEntity(new StringEntity(body, ContentType.create("application/json")));
+            HttpResponse response = client.execute(put);
             BufferedReader rd = new BufferedReader(new InputStreamReader(response.getEntity().getContent()));
             String line = "";
             String result = "";

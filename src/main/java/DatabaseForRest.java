@@ -29,14 +29,15 @@ public class DatabaseForRest {
 	    }
 
 	    public static List<Map<String, Object>> getAll(final Bucket bucket) {
-	        String queryStr = "SELECT META().id, _sync.rev, informacionGeneral, descripcion, direccion, posicion, ranking " +
-	                "FROM `" + bucket.name() + "` " +
+	        String queryStr = "SELECT META().id, _sync.rev, descripcion, posicion " +
+	                "FROM GuiaMovilSE " +
 	                "WHERE documentClass = 'class es.codigoandroid.pojos.Recursos' AND _sync IS NOT MISSING";
 	        return bucket.async().query(N1qlQuery.simple(queryStr))
 	                .flatMap(AsyncN1qlQueryResult::rows)
 	                .map(result -> result.value().toMap())
+	                .doOnError(e -> System.out.println("Super mega error: " + e.getMessage() +"\n"+ e.getCause() + "\n" + e.getStackTrace() + "\n"+ e.toString()))
 	                .toList()
-	                .timeout(10, TimeUnit.SECONDS)
+	                .timeout(60, TimeUnit.SECONDS)
 	                .toBlocking()
 	                .single();
 	    }
