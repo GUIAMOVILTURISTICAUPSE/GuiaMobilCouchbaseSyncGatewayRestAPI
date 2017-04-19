@@ -14,7 +14,7 @@ public class DatabaseForRest {
 
 	 private DatabaseForRest() { }
 
-	    public static List<Map<String, Object>> getById(final Bucket bucket, String todoId) {
+	    public static Map<String, Object> getById(final Bucket bucket, String todoId) {
 	        String queryStr = "SELECT META().id, _sync.rev, informacionGeneral, descripcion, direccion, posicion, ranking " +
 	                "FROM `" + bucket.name() + "` " +
 	                "WHERE documentClass = 'class es.codigoandroid.pojos.Recursos' AND META().id = $1 AND _sync IS NOT MISSING";
@@ -25,7 +25,7 @@ public class DatabaseForRest {
 	                .toList()
 	                .timeout(10, TimeUnit.SECONDS)
 	                .toBlocking()
-	                .single();
+	                .single().get(0);
 	    }
 
 	    public static List<Map<String, Object>> getAll(final Bucket bucket) {
