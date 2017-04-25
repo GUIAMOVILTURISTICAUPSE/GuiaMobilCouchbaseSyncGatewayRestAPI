@@ -15,7 +15,7 @@ public class DatabaseForRest {
 	 private DatabaseForRest() { }
 
 	    public static Map<String, Object> getById(final Bucket bucket, String todoId) {
-	        String queryStr = "SELECT META().id, _sync.rev, informacionGeneral, descripcion, direccion, posicion, ranking " +
+	        String queryStr = "SELECT "+bucket.name()+".*, " +"META("+ bucket.name()+").id " +
 	                "FROM `" + bucket.name() + "` " +
 	                "WHERE documentClass = 'class es.codigoandroid.pojos.Recursos' AND META().id = $1 AND _sync IS NOT MISSING";
 	        ParameterizedN1qlQuery query = ParameterizedN1qlQuery.parameterized(queryStr, JsonArray.create().add(todoId));
@@ -29,8 +29,8 @@ public class DatabaseForRest {
 	    }
 
 	    public static List<Map<String, Object>> getAll(final Bucket bucket) {
-	        String queryStr = "SELECT META().id, _sync.rev, descripcion, posicion " +
-	                "FROM GuiaMovilSE " +
+	        String queryStr = "SELECT "+bucket.name()+".*, " +"META("+ bucket.name()+").id " +
+	                "FROM `" + bucket.name() + "` " +
 	                "WHERE documentClass = 'class es.codigoandroid.pojos.Recursos' AND _sync IS NOT MISSING";
 	        return bucket.async().query(N1qlQuery.simple(queryStr))
 	                .flatMap(AsyncN1qlQueryResult::rows)

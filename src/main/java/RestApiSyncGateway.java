@@ -149,7 +149,8 @@ public class RestApiSyncGateway implements Filter {
         } else if(!jsonData.containsKey("posicion")) {
             return new ResponseEntity<String>(JsonObject.create().put("error", 400).put("message", "El recurso debe tener datos de geolocalizacion").toString(), HttpStatus.BAD_REQUEST);
         }
-        JsonObject data = JsonObject.create().put("_id", jsonData.get("nombre")).put("descripcion", jsonData.get("descripcion")).put("documentClass", "class es.codigoandroid.pojos.Recursos").put("posicion", jsonData.get("posicion"));
+        JsonObject data = jsonData;
+        data.put("_id", jsonData.get("nombre")).put("documentClass", "class es.codigoandroid.pojos.Recursos");
         JsonObject response = makePostRequest("http://" + gatewayHostname + ":4984/" + gatewayDatabase + "/", data.toString());
         return new ResponseEntity<String>(response.getObject("content").toString(), HttpStatus.valueOf(response.getInt("status")));
     }
