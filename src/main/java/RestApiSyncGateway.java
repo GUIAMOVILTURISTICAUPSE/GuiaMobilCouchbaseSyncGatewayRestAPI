@@ -135,11 +135,39 @@ public class RestApiSyncGateway implements Filter {
         JsonArray jsonData = JsonArray.fromJson(json);
         JsonArray responses = JsonArray.create();
         for(int i = 0; i < jsonData.size(); i++) {
-            responses.add(makeDeleteRequest("http://" + gatewayHostname + ":4984/" + bucket().name() + "/" + jsonData.getObject(i).getString("id") + "?rev=" + jsonData.getObject(i).getString("rev")));
+            responses.add(makeDeleteRequest("http://" + gatewayHostname + ":4984/" + gatewayDatabase + "/" + jsonData.getObject(i).getString("id") + "?rev=" + jsonData.getObject(i).getString("rev")));
         }
         return new ResponseEntity<String>(responses.toString(), HttpStatus.OK);
     }
 
+    @RequestMapping(value="/recursos/{recursoId}", method= RequestMethod.DELETE)
+    public Object deleteRecurso(@RequestBody String json, @PathVariable("recursoId") String todoId) {
+    	JsonObject jsonData = JsonObject.fromJson(json);
+    	
+    	String rev;
+    	if(!jsonData.containsKey("_sync"))
+    	{
+        	if(!jsonData.containsKey("_rev")) {
+                return new ResponseEntity<String>(JsonObject.create().put("error", 400).put("message", "El recurso debe tener una revision para hacer delete, la cabecera no se encuentra ni en sync, ni en la raiz del objeto json").toString(), HttpStatus.BAD_REQUEST);
+            }else{
+            	rev = jsonData.getString("_rev");
+            }
+        	
+        }else{
+        	JsonObject syncObject = (JsonObject) jsonData.get("_sync");
+        	rev = syncObject.getString("rev");
+    	}
+    	
+    	//rev = jsonData.getString("rev");
+    	String deleteRequest = "http://" + gatewayHostname + ":4984/" + gatewayDatabase + "/" + todoId + "?rev="+rev;
+    	System.out.println("REV: " + rev);
+        System.out.println("DeleteRequest: " + deleteRequest);
+        System.out.println("Data: " + jsonData.toString());
+        JsonObject response = makeDeleteRequest(deleteRequest);
+        System.out.println("Response: " + response);
+        return new ResponseEntity<String>(response.getObject("content").toString(), HttpStatus.valueOf(response.getInt("status")));
+    	
+    }
 
     @RequestMapping(value="/recursos", method= RequestMethod.POST)
     public Object createRecurso(@RequestBody String json) {
