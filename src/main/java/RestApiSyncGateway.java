@@ -35,16 +35,31 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+//Con anotaciones para Byron
 
+//Esta anotacion le dice a Spring Boot que desde aqui inicia el application (debe tener un main)
 @SpringBootApplication
+
+//Esta anotacion sirve para decirle a Srping que esta clase manejara servicios web REST.
 @RestController
+
+//Esta anotacion permite el mapeo a esta clase
 @RequestMapping("/api")
 public class RestApiSyncGateway implements Filter { 
 
+	//Indispensable para poder correr los microservicios.
+	//Spring boot levanta su propio tomcat. Este es el punto de inicio.
+	//Le debes decir que esta clase es la que inicia la ejecucion
+	//por eso se la pasas como parametro al run
     public static void main(String[] args) {
         SpringApplication.run(RestApiSyncGateway.class, args);
     }
 
+    //El filter permite filtrar las peticiones, en nuestro caso tomando en cuenta las cabeceras.
+    //Esto nos ayudara a resolver el problema del CORS (Cross origin) o peticiones que viene de otro origen.
+    //Como nuestras peticiones al web service vienen desde varios dispositivos, debemos evitar el problema del CORS.
+    //Por eso esto es importante.
+    //Tambien en este metodo definimos que metodos HTTP vamos a permitir.
     @Override
     public void doFilter(ServletRequest req, ServletResponse res, FilterChain chain)
             throws IOException, ServletException {
@@ -61,6 +76,10 @@ public class RestApiSyncGateway implements Filter {
     @Override
     public void destroy() {}
 
+    //Todas esta lineas permiten mapear las variables que estan definidas
+    //En el archivo application.properties estan las configuraciones.
+    //Esto nos permite generar y deployar rapida y facilmente el servicio sin tener que recompilar
+   
     @Value("${server.hostname}")
     private String serverHostname;
 
@@ -95,6 +114,10 @@ public class RestApiSyncGateway implements Filter {
     	return env;
     }
     
+    //Un Bean en Java es un objeto que encapsula muchos otros objetos en uno solo.
+    //Los beans tienen un constructor con 0 argumentos y son serializables (se convierten en informacion que se puede pasar y reconstruir en otra parte/aplicacion).
+    //Estos beans son los objetos que van a vivir durante la ejecucion esta clase.
+    //Los vamos a usar y a reutilizar mucho (para conectar con la base de datos).
     public @Bean
     Cluster cluster() {
     	//Authenticator auth = new com.couchbase.client.java.auth.PasswordAuthenticator(serverUsername, serverPassword);
@@ -116,11 +139,27 @@ public class RestApiSyncGateway implements Filter {
         //return cluster().openBucket(serverBucket, serverBucketPassword);
     }
 
+    //En cada metodo haremos el request mapping para mapear otro nivel de direccionamiento dentro de la clase.
+    //Es decir es un nivel de mapeo interno al mapeo de esta clase (api). 
+    //Asi, este RequestMapping /recursos esta en realidad mapeando a /api/recursos.
+    //En el mapeo, lo que esta entre parentesis es contenido que queremos extraer a una variable,
+    //en este caso llamada recursoId. Es decir que lo que venga despues de recursos/ sera mapeado a esa variable.
+    //En Request Mapping el segundo parametroe permite definir a que metodo HTTP vamos a mapear esta funcion, como es GET.
+    //En la firma del metodo, el parametro viene anotado con @PathVariable. Esto permite conectar la variable que esta en el mapping,
+    //con la variable que representa al parametro en java y que utilizaremos en nuestro metodo.
     @RequestMapping(value="/recursos/{recursoId}", method= RequestMethod.GET)
     public Object getRecursoById(@PathVariable("recursoId") String todoId) {
         return DatabaseForRest.getById(bucket(), todoId);
     }
 
+    //Recuerda que estos metodos get estan llamando a otra clase para poder realizar el query (consulta) directo contra el CouchBase Server
+    //Y no contra el Sync Gateway. Porque no contra el Sync Gateway, pues porque estas consultas son solo lecturas y se puede hacer contra
+    //el servidor Couchbase Server que es mas robusto y que tiene la capacidad de hacer consultas de tipo N1QL que es un sabor de SQL para Couchbase.
+    //N1QL provee muchas de las ventajas de SQL a una base de Datos NoSQL como es Couchbase. Es lo mejor de ambos mundos.
+    //OJO, todas las otras operaciones que modifiquen data (Post {Crear}, Put {Modificar}, Delete {Borrar}) deben hacerse contra el Sync Gateway.
+    //Si no haces las operaciones de modificacion contra el Sync Gateway API, se pierden las cabeceras de sync en los objetos y no se logra la replicacion 
+    //que hace el sync gateway contra todos los dispositivos. 
+    //Sin la capacidad de replicar el sync gateway no tiene sentido, por eso es super importante tener esto en mente.
     @RequestMapping(value="/recursos", method= RequestMethod.GET)
     public Object getAllRecursos() {
     	System.out.println("Llamando al metodo de traer todos los recursos");
@@ -130,6 +169,7 @@ public class RestApiSyncGateway implements Filter {
         return recursosEncontrados;
     }
 
+    //Como la data para Delete viene en formato JSON, debo usar JSONObject para manipular la informacion de manera conveniente.
     @RequestMapping(value="/recursos", method= RequestMethod.DELETE)
     public Object deleteAllRecursos(@RequestBody String json) {
         JsonArray jsonData = JsonArray.fromJson(json);
@@ -152,6 +192,7 @@ public class RestApiSyncGateway implements Filter {
     	
     }
     
+    //La etiqueta @RequestBody ayuda a mapear la informacion que viene dentro del Request, de manera que este disponible pal metodo.
     @RequestMapping(value="/recursos", method= RequestMethod.POST)
     public Object createRecurso(@RequestBody String json) {
         JsonObject jsonData = JsonObject.fromJson(json);
@@ -171,6 +212,8 @@ public class RestApiSyncGateway implements Filter {
     	System.out.println("Entro a put request de recurso");
         JsonObject jsonData = JsonObject.fromJson(json);
         String rev;
+        
+        //No olvidar hacer validaciones de acuerdo a lo que deseas que tenga tu data (json), osea los campos minimos que esperas se encuentren en la data.
         if(!jsonData.containsKey("_sync")) {
             return new ResponseEntity<String>(JsonObject.create().put("error", 400).put("message", "El recurso debe tener una revision para hacer put").toString(), HttpStatus.BAD_REQUEST);
         }else{
