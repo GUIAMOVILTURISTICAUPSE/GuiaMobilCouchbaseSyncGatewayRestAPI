@@ -183,7 +183,7 @@ public class RestApiSyncGateway implements Filter {
     @RequestMapping(value="/recursos/{recursoId}", method= RequestMethod.DELETE)
     public Object deleteRecurso(@RequestParam(value="rev") String rev, @PathVariable("recursoId") String todoId) {
     	
-    	String deleteRequest = "http://" + gatewayHostname + ":4984/" + gatewayDatabase + "/" + todoId + "?rev="+rev;
+    	String deleteRequest = "http://" + gatewayHostname + ":4984/" + gatewayDatabase + "/" + todoId.replaceAll(" ", "%20") + "?rev="+rev;
     	System.out.println("REV: " + rev);
         System.out.println("DeleteRequest: " + deleteRequest);
         JsonObject response = makeDeleteRequest(deleteRequest);

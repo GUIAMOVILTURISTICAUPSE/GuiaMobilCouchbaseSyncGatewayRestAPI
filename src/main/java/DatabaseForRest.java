@@ -1,5 +1,6 @@
 package main.java;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -19,13 +20,16 @@ public class DatabaseForRest {
 	                "FROM `" + bucket.name() + "` " +
 	                "WHERE documentClass = 'class es.codigoandroid.pojos.Recursos' AND META().id = $1 AND _sync IS NOT MISSING";
 	        ParameterizedN1qlQuery query = ParameterizedN1qlQuery.parameterized(queryStr, JsonArray.create().add(todoId));
-	        return bucket.async().query(query)
+	        return bucket.async()
+	        		.query(query)
 	                .flatMap(AsyncN1qlQueryResult::rows)
 	                .map(result -> result.value().toMap())
+	                .filter(out -> out!=null)
 	                .toList()
 	                .timeout(10, TimeUnit.SECONDS)
 	                .toBlocking()
-	                .single().get(0);
+	                .single()
+	                .get(0);
 	    }
 
 	    public static List<Map<String, Object>> getAll(final Bucket bucket) {
