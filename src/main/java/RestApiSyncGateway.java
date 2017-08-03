@@ -238,17 +238,6 @@ public class RestApiSyncGateway implements Filter {
         if(jsonData.containsKey("_attachments")) {
         	jsonData.removeKey("_attachments");
         }
-        /*JsonObject data = JsonObject.create().put("_id", jsonData.get("_id")).put("descripcion", jsonData.get("descripcion")).put("documentClass", "class es.codigoandroid.pojos.Recursos")
-        		.put("posicion", jsonData.get("posicion"))
-        		.put("comentarios",jsonData.get("comentarios"))
-        		.put("costoRecursos",jsonData.get("costoRecursos"))
-        		.put("descripcion", jsonData.get("descripcion"))
-        		.put("direccion", jsonData.get("direccion"))
-        		.put("documentClass", jsonData.get("class es.codigoandroid.pojos.Recursos"))
-        		.put("_attachments",jsonData.get("_attachments"));
-        		 * 
-        		 */
-        
         JsonObject data = jsonData;
         String putRequest = "http://" + gatewayHostname + ":4984/" + gatewayDatabase + "/" + jsonData.get("_id") + "?rev="+rev;
         System.out.println("PutRequest: " + putRequest);
@@ -319,4 +308,66 @@ public class RestApiSyncGateway implements Filter {
         return jsonResult;
     }
 
+    //WS senderos
+    @RequestMapping(value="/senderos", method= RequestMethod.GET)
+    public Object getAllSenderos() {
+    	System.out.println("Llamando al metodo de traer todos los senderos");
+        List<Map<String, Object>> recursosEncontrados = DatabaseForRest.getAllSenderos(bucket());
+        for(Map<String,Object> m:recursosEncontrados)
+        	System.out.println(m.values());
+        return recursosEncontrados;
+    }
+    @RequestMapping(value="/senderos/{senderoId}", method= RequestMethod.GET)
+    public Object getSenderoById(@PathVariable("senderoId") String todoId) {
+        return DatabaseForRest.getSenderoById(bucket(), todoId);
+    }
+    
+    @RequestMapping(value="/senderos/{senderoId}/{nombreId}", method= RequestMethod.GET)
+    public Object getNombreSenderoById(@PathVariable("senderoId") String todoId,@PathVariable("nombreId") String nombreId) {
+        return DatabaseForRest.getNombreSenderoById(bucket(),todoId,nombreId);
+    }
+    
+    
+    
+    
+    @RequestMapping(value="/sendero", method = RequestMethod.POST)
+    public Object createSendero(@RequestBody String json) {
+        JsonObject jsonData = JsonObject.fromJson(json);
+        if(!jsonData.containsKey("descripcion")) {
+            return new ResponseEntity<String>(JsonObject.create().put("error", 400).put("message", "El sendero debe tener una descripcion").toString(), HttpStatus.BAD_REQUEST);
+        } else if(!jsonData.containsKey("nombre")) {
+            return new ResponseEntity<String>(JsonObject.create().put("error", 400).put("message", "El sendero debe tener un nombre").toString(), HttpStatus.BAD_REQUEST);
+        }
+        
+        JsonObject data = jsonData;
+        data.put("_id", jsonData.get("nombre")).put("documentClass", "class es.codigoandroid.pojos.Recursos");
+        JsonObject response = makePostRequest("http://" + gatewayHostname + ":4984/" + gatewayDatabase + "/", data.toString());
+        return new ResponseEntity<String>(response.getObject("content").toString(), HttpStatus.valueOf(response.getInt("status")));
+    }
+    
+    @RequestMapping(value="/senderos", method= RequestMethod.PUT)
+    public Object updateSendero(@RequestBody String json) {
+    	System.out.println("Entro a put request de sendero");
+        JsonObject jsonData = JsonObject.fromJson(json);
+        String rev;
+        if(!jsonData.containsKey("nombre")) {
+            return new ResponseEntity<String>(JsonObject.create().put("error", 400).put("message", "El sendero debe tener un nombre para hacer put").toString(), HttpStatus.BAD_REQUEST);
+        }else{
+        	JsonObject jo = jsonData.getObject("_sync");
+        	rev = jo.getString("rev");
+        	System.out.println("Rev: " + rev);
+        }
+        if(jsonData.containsKey("_sync")) {
+        	jsonData.removeKey("_sync");
+        }
+        if(jsonData.containsKey("_attachments")) {
+        	jsonData.removeKey("_attachments");
+        }
+        JsonObject data = jsonData;
+        String putRequest = "http://" + gatewayHostname + ":4984/" + gatewayDatabase + "/" + jsonData.get("_id") + "?rev="+rev;
+        System.out.println("PutRequest: " + putRequest);
+        System.out.println("Data: " + data.toString());
+        JsonObject response = makePutRequest(putRequest, data.toString());
+        return new ResponseEntity<String>(response.getObject("content").toString(), HttpStatus.valueOf(response.getInt("status")));
+    }
 }
