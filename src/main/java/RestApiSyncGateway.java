@@ -201,7 +201,17 @@ public class RestApiSyncGateway implements Filter {
         } else if(!jsonData.containsKey("posicion")) {
             return new ResponseEntity<String>(JsonObject.create().put("error", 400).put("message", "El recurso debe tener datos de geolocalizacion").toString(), HttpStatus.BAD_REQUEST);
         }
+        
+        //Borrar sync en este punto puesto que para post (nuevos objetos), no se necesita el campo sync.
+        //Si se envia el campo sync, el webservice falla con error 
+        //{"error":"Bad Request","reason":"user defined top level properties beginning with '_' are not allowed in document body"}
+        if(jsonData.containsKey("_sync"))
+        {
+        	jsonData.removeKey("_sync");
+        }
+        
         JsonObject data = jsonData;
+        
         data.put("_id", jsonData.get("nombre")).put("documentClass", "class es.codigoandroid.pojos.Recursos");
         JsonObject response = makePostRequest("http://" + gatewayHostname + ":4984/" + gatewayDatabase + "/", data.toString());
         return new ResponseEntity<String>(response.getObject("content").toString(), HttpStatus.valueOf(response.getInt("status")));
