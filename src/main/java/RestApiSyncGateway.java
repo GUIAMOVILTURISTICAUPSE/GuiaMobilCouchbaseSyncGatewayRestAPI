@@ -249,7 +249,7 @@ public class RestApiSyncGateway implements Filter {
         //{"error":"Bad Request","reason":"user defined top level properties beginning with '_' are not allowed in document body"}
         if(jsonData.containsKey("_sync"))
         {
-        	jsonData.removeKey("_sync");
+        		jsonData.removeKey("_sync");
         }
         
         JsonObject data = jsonData;
@@ -261,7 +261,7 @@ public class RestApiSyncGateway implements Filter {
     
     @RequestMapping(value="/recursos", method= RequestMethod.PUT)
     public Object updateRecurso(@RequestBody String json) {
-    	System.out.println("Entro a put request de recurso");
+    		System.out.println("Entro a put request de recurso");
         JsonObject jsonData = JsonObject.fromJson(json);
         String rev;
         
@@ -270,18 +270,20 @@ public class RestApiSyncGateway implements Filter {
             return new ResponseEntity<String>(JsonObject.create().put("error", 400).put("message", "El recurso debe tener una revision para hacer put").toString(), HttpStatus.BAD_REQUEST);
         }else{
         	//rev = jsonData.getString("_sync");
-        	JsonObject jo = jsonData.getObject("_sync");
-        	rev = jo.getString("rev");
-        	System.out.println("Rev: " + rev);
+	        	JsonObject jo = jsonData.getObject("_sync");
+	        	rev = jo.getString("rev");
+	        	System.out.println("Rev: " + rev);
         }
         if(jsonData.containsKey("_sync")) {
-        	jsonData.removeKey("_sync");
+        		jsonData.removeKey("_sync");
         }
         if(jsonData.containsKey("_attachments")) {
-        	jsonData.removeKey("_attachments");
+        		jsonData.removeKey("_attachments");
         }
         JsonObject data = jsonData;
-        String putRequest = "http://" + gatewayHostname + ":4984/" + gatewayDatabase + "/" + jsonData.get("_id") + "?rev="+rev;
+        data.put("documentClass", "class es.codigoandroid.pojos.Recursos");
+        //data.put("_id", jsonData.get("nombre")).put("documentClass", "class es.codigoandroid.pojos.Recursos");
+        String putRequest = "http://" + gatewayHostname + ":" + gatewayPort +"/" + gatewayDatabase + "/" + jsonData.getString("id").replaceAll(" ", "%20") + "?rev="+rev;
         System.out.println("PutRequest: " + putRequest);
         System.out.println("Data: " + data.toString());
         JsonObject response = makePutRequest(putRequest, data.toString());
