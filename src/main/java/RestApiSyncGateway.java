@@ -16,8 +16,10 @@ import com.couchbase.client.java.env.DefaultCouchbaseEnvironment;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
+import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.HttpClientBuilder;
@@ -33,7 +35,9 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.net.URI;
 import java.util.ArrayList;
+
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -100,6 +104,9 @@ public class RestApiSyncGateway implements Filter {
     
     @Value("${gateway.database}")
     private String gatewayDatabase;
+    
+    @Value("${gateway.port}")
+    private Integer gatewayPort;
     
     @Value("${server.username}")
     private String serverUsername;
@@ -173,7 +180,8 @@ public class RestApiSyncGateway implements Filter {
     }
 
     //Como la data para Delete viene en formato JSON, debo usar JSONObject para manipular la informacion de manera conveniente.
-    @RequestMapping(value="/recursos", method= RequestMethod.DELETE)
+    //FIXME: Arreglar webservice porque no deberia recibir nada y debe estar autenticado
+    /*@RequestMapping(value="/recursos", method= RequestMethod.DELETE)
     public Object deleteAllRecursos(@RequestBody String json) {
         JsonArray jsonData = JsonArray.fromJson(json);
         JsonArray responses = JsonArray.create();
@@ -181,6 +189,41 @@ public class RestApiSyncGateway implements Filter {
             responses.add(makeDeleteRequest("http://" + gatewayHostname + ":4984/" + gatewayDatabase + "/" + jsonData.getObject(i).getString("id") + "?rev=" + jsonData.getObject(i).getString("rev")));
         }
         return new ResponseEntity<String>(responses.toString(), HttpStatus.OK);
+    }*/
+    
+  //Como la data para Delete viene en formato JSON, debo usar JSONObject para manipular la informacion de manera conveniente.
+    //FIXME: Arreglar webservice porque no deberia recibir nada y debe estar autenticado
+    @RequestMapping(value="/recursos", method= RequestMethod.DELETE)
+    public Object deleteAllRecursos() {
+    		JsonObject allDocsRequestResponse = makeGetAllDocsRequest();
+    		int requestResponseStatus = allDocsRequestResponse.getInt("status");
+    		if(requestResponseStatus!=200)
+    		{
+    			 return new ResponseEntity<String>("Error en get all documents el bd.", HttpStatus.INTERNAL_SERVER_ERROR);
+    		}
+    		
+    		JsonArray jsonData = allDocsRequestResponse.getObject("content").getArray("rows");
+    		JsonArray docsToUpdate = JsonArray.create();
+        //JsonArray responses = JsonArray.create();
+        for(int i = 0; i < jsonData.size(); i++) {
+        		JsonObject docOriginal = jsonData.getObject(i);
+        		JsonObject doc = JsonObject.create();
+        		doc.put("_id", docOriginal.getString("id"));
+        		doc.put("_rev", docOriginal.getObject("value").getString("rev"));
+        		doc.put("_deleted", true);
+        		docsToUpdate.add(doc);
+        }
+        String url = "http://" + gatewayHostname + ":" + gatewayPort +"/" + gatewayDatabase + "/_bulk_docs";
+        JsonObject updateBody = JsonObject.create();
+        updateBody.put("docs", docsToUpdate);
+        JsonObject bulkUpdateResponse = makeBulkPostRequest(url, updateBody.toString());
+        int bulkUpdateResponseStatus = bulkUpdateResponse.getInt("status");
+		if(bulkUpdateResponseStatus==409)
+		{
+			 return new ResponseEntity<String>("Error conflicto al borrar/actualizar documentos.", HttpStatus.CONFLICT);
+		}
+        
+        return new ResponseEntity<String>(bulkUpdateResponse.toString(), HttpStatus.OK);
     }
 
     @RequestMapping(value="/recursos/{recursoId}", method= RequestMethod.DELETE)
@@ -210,7 +253,7 @@ public class RestApiSyncGateway implements Filter {
         //{"error":"Bad Request","reason":"user defined top level properties beginning with '_' are not allowed in document body"}
         if(jsonData.containsKey("_sync"))
         {
-        	jsonData.removeKey("_sync");
+        		jsonData.removeKey("_sync");
         }
         
         JsonObject data = jsonData;
@@ -224,7 +267,7 @@ public class RestApiSyncGateway implements Filter {
     
     @RequestMapping(value="/recursos", method= RequestMethod.PUT)
     public Object updateRecurso(@RequestBody String json) {
-    	System.out.println("Entro a put request de recurso");
+    		System.out.println("Entro a put request de recurso");
         JsonObject jsonData = JsonObject.fromJson(json);
         String rev;
         
@@ -233,22 +276,75 @@ public class RestApiSyncGateway implements Filter {
             return new ResponseEntity<String>(JsonObject.create().put("error", 400).put("message", "El recurso debe tener una revision para hacer put").toString(), HttpStatus.BAD_REQUEST);
         }else{
         	//rev = jsonData.getString("_sync");
-        	JsonObject jo = jsonData.getObject("_sync");
-        	rev = jo.getString("rev");
-        	System.out.println("Rev: " + rev);
+	        	JsonObject jo = jsonData.getObject("_sync");
+	        	rev = jo.getString("rev");
+	        	System.out.println("Rev: " + rev);
         }
         if(jsonData.containsKey("_sync")) {
-        	jsonData.removeKey("_sync");
+        		jsonData.removeKey("_sync");
         }
         if(jsonData.containsKey("_attachments")) {
-        	jsonData.removeKey("_attachments");
+        		jsonData.removeKey("_attachments");
         }
         JsonObject data = jsonData;
-        String putRequest = "http://" + gatewayHostname + ":4984/" + gatewayDatabase + "/" + jsonData.get("_id") + "?rev="+rev;
+        data.put("documentClass", "class es.codigoandroid.pojos.Recursos");
+        //data.put("_id", jsonData.get("nombre")).put("documentClass", "class es.codigoandroid.pojos.Recursos");
+        String putRequest = "http://" + gatewayHostname + ":" + gatewayPort +"/" + gatewayDatabase + "/" + jsonData.getString("id").replaceAll(" ", "%20") + "?rev="+rev;
         System.out.println("PutRequest: " + putRequest);
         System.out.println("Data: " + data.toString());
         JsonObject response = makePutRequest(putRequest, data.toString());
         return new ResponseEntity<String>(response.getObject("content").toString(), HttpStatus.valueOf(response.getInt("status")));
+    }
+    
+    private JsonObject makeGetAllDocsRequest() {
+        JsonObject jsonResult = JsonObject.create();
+        try {
+            HttpClient client = HttpClientBuilder.create().build();
+            
+            //Para Darle parametros al Get
+            URIBuilder builder = new URIBuilder();
+            builder.setScheme("http").setHost(gatewayHostname).setPort(4985).setPath("/"+gatewayDatabase+"/_all_docs")
+                .setParameter("access", "false")
+                .setParameter("channels", "false")
+                .setParameter("revs", "false")
+                .setParameter("include_docs", "false")
+                .setParameter("update_seq", "false");
+            URI uri = builder.build();
+            HttpGet get = new HttpGet(uri);
+            HttpResponse response = client.execute(get);
+            BufferedReader rd = new BufferedReader(new InputStreamReader(response.getEntity().getContent()));
+            String line = "";
+            String result = "";
+            while ((line = rd.readLine()) != null) {
+                result += line;
+            }
+            jsonResult.put("status", response.getStatusLine().getStatusCode());
+            jsonResult.put("content", JsonObject.fromJson(result));
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return jsonResult;
+    }
+    
+    private JsonObject makeBulkPostRequest(String url, String body) {
+        JsonObject jsonResult = JsonObject.create();
+        try {
+            HttpClient client = HttpClientBuilder.create().build();
+            HttpPost post = new HttpPost(url);
+            post.setEntity(new StringEntity(body, ContentType.create("application/json")));
+            HttpResponse response = client.execute(post);
+            BufferedReader rd = new BufferedReader(new InputStreamReader(response.getEntity().getContent()));
+            String line = "";
+            String result = "";
+            while ((line = rd.readLine()) != null) {
+                result += line;
+            }
+            jsonResult.put("status", response.getStatusLine().getStatusCode());
+            jsonResult.put("content", JsonObject.fromJson(result));
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return jsonResult;
     }
 
     private JsonObject makePostRequest(String url, String body) {
