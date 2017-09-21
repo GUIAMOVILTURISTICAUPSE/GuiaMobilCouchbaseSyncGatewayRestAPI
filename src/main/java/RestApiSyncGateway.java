@@ -214,7 +214,7 @@ public class RestApiSyncGateway implements Filter {
         }
         
         JsonObject data = jsonData;
-        System.out.println("Datos de entrada: " + data);
+
         data.put("_id", jsonData.get("nombre")).put("documentClass", "class es.codigoandroid.pojos.Recursos");
         System.out.println("Datos a guardar: " + data);
         
@@ -329,7 +329,8 @@ public class RestApiSyncGateway implements Filter {
     
     @RequestMapping(value="/senderos/{senderoId}/{nombreId}", method= RequestMethod.GET)
     public Object getNombreSenderoById(@PathVariable("senderoId") String todoId,@PathVariable("nombreId") String nombreId) {
-    	System.out.println(DatabaseForRest.getNombreSenderoById(bucket(),todoId,nombreId));
+    	//System.out.println(DatabaseForRest.getNombreSenderoById(bucket(),todoId,nombreId));
+
         return DatabaseForRest.getNombreSenderoById(bucket(),todoId,nombreId);
     }
     
@@ -337,12 +338,13 @@ public class RestApiSyncGateway implements Filter {
     
     
     @RequestMapping(value="/sendero", method = RequestMethod.POST)
-    public Object createSendero(@RequestBody String json) throws JsonProcessingException {
+    public Object createSendero(@RequestBody String json) throws JsonProcessingException  {
     	String revSendero = "";
     	String idRecurso = "";
     	System.out.println("Entra al metodo");
     	JsonObject jsonData = JsonObject.fromJson(json);
     	System.out.println("Validar los datos");
+
         if(!jsonData.containsKey("descripcion")) {
             return new ResponseEntity<String>(JsonObject.create().put("error", 400).put("message", "El sendero debe tener una descripcion").toString(), HttpStatus.BAD_REQUEST);
         } else if(!jsonData.containsKey("nombre")) {
@@ -389,8 +391,7 @@ public class RestApiSyncGateway implements Filter {
         deleteRecurso(revSendero,idRecurso);
         return createRecurso(jsonDatosRecurso.toString());
     }
-    
-    
+
     @RequestMapping(value="/senderos", method= RequestMethod.PUT)
     public Object updateSendero(@RequestBody String json) {
     	System.out.println("Entro a put request de sendero");
