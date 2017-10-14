@@ -616,5 +616,30 @@ public class RestApiSyncGateway implements Filter {
         return updateRecurso(jsonDatosRecurso.toString());
     }  
     
+    //WEB SERVICES DE IMAGENES
+    //METODOS GET
+    //METODOS QUE OBTIENE TODAS LAS IMAGENES DE TODOS LOS RECURSOS, AGRUPADOS POR ID DEL RECURSO
+    @RequestMapping(value="/imagen", method= RequestMethod.GET)
+    public Object getAllImagenesDeRecursos() {
+    	System.out.println("Llamando al metodo de traer todas las imagenes");
+        List<Map<String, Object>> recursosEncontrados = DatabaseForRest.getAllImagenes(bucket());
+        for(Map<String,Object> m:recursosEncontrados)
+        	System.out.println(m.values());
+        return recursosEncontrados;
+    }
+    //METODO QUE OBTIENE TODOS LAS IMAGENES DE UN RECURSO, MEDIANTE EL ID DEL RECURSO
+    @RequestMapping(value="/imagen/{recursoId}", method= RequestMethod.GET)
+    public Object getImagenByIdRecurso(@PathVariable("recursoId") String todoId) {
+        return DatabaseForRest.getImagenByIdRecurso(bucket(), todoId);
+    }
+    //METODO QUE OBTIENE LOS DATOS DE UN SENDERO ESPECIFICO MEDIANTE EL ID DEL SENDERO, DE UN RECURSO CON SU ID RECURSO
+    @RequestMapping(value="/imagen/{recursoId}/{imagenId}", method= RequestMethod.GET)
+    public Object getImagenByIdRecursoIdImagen(@PathVariable("recursoId") String recursoId,@PathVariable("imagenId") String imagenId) {
+    	//System.out.println(DatabaseForRest.getNombreSenderoById(bucket(),todoId,nombreId));
+    	System.out.println("Ingresa al metodo get ss");
+        return DatabaseForRest.getImagenesByIdRecursoIdSendero(bucket(),recursoId,imagenId);
+    }
+    
+    
     
 }

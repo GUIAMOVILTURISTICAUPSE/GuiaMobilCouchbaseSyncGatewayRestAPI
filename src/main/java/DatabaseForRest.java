@@ -33,9 +33,11 @@ public class DatabaseForRest {
 	    }
 
 	    public static List<Map<String, Object>> getAll(final Bucket bucket) {
+	    	
 	        String queryStr = "SELECT "+bucket.name()+".*, " +"META("+ bucket.name()+").id " +
 	                "FROM `" + bucket.name() + "` " +
 	                "WHERE documentClass = 'class es.codigoandroid.pojos.Recursos' AND _sync IS NOT MISSING";
+	        
 	        return bucket.async().query(N1qlQuery.simple(queryStr))
 	                .flatMap(AsyncN1qlQueryResult::rows)
 	                .map(result -> result.value().toMap())
@@ -45,6 +47,8 @@ public class DatabaseForRest {
 	                .toBlocking()
 	                .single();
 	    }
+	    
+	    //QUERYS QUE SE UTILIZAN PARA LAS PETICIONES HTTP DE LOS SENDEROS
 	    public static List<Map<String, Object>> getAllSenderos(final Bucket bucket) {
 	        String queryStr = "SELECT "+bucket.name() +".sendero, " +"META("+ bucket.name()+").id " +
 	                "FROM `" + bucket.name() + "` " +
@@ -79,6 +83,49 @@ public class DatabaseForRest {
 	                "WHERE t.documentClass = 'class es.codigoandroid.pojos.Recursos' AND META().id = $1 AND s.nombre = $2 AND t._sync IS NOT MISSING";
 	        System.out.println("Query: " + queryStr);
 	        ParameterizedN1qlQuery query = ParameterizedN1qlQuery.parameterized(queryStr, JsonArray.create().add(todoId).add(nombreId));
+	        return bucket.async().query(query)
+	                .flatMap(AsyncN1qlQueryResult::rows)
+	                .map(result -> result.value().toMap())
+	                .toList()
+	                .timeout(10, TimeUnit.SECONDS)
+	                .toBlocking()
+	                .single().get(0);
+	    }
+	    //QUERYS A UTILIZAR PARA LAS IMAGENES
+	    public static List<Map<String, Object>> getAllImagenes(final Bucket bucket) {
+	        String queryStr = "SELECT "+ bucket.name() +".imagenPrincipal, " + bucket.name() +".galeria, META(" + bucket.name() +").id " +
+	                "FROM `" + bucket.name() + "` " +
+	                "WHERE documentClass = 'class es.codigoandroid.pojos.Recursos' AND _sync IS NOT MISSING";
+	        return bucket.async().query(N1qlQuery.simple(queryStr))
+	                .flatMap(AsyncN1qlQueryResult::rows)
+	                .map(result -> result.value().toMap())
+	                .doOnError(e -> System.out.println("Super mega error: " + e.getMessage() +"\n"+ e.getCause() + "\n" + e.getStackTrace() + "\n"+ e.toString()))
+	                .toList()
+	                .timeout(60, TimeUnit.SECONDS)
+	                .toBlocking()
+	                .single();
+	    }
+	    
+	    public static Map<String, Object> getImagenByIdRecurso(final Bucket bucket, String todoId) {
+	        String queryStr = "SELECT "+ bucket.name() +".imagenPrincipal, " + bucket.name() +".galeria, META(" + bucket.name() +").id " + 
+	                "FROM `" + bucket.name() + "` " +
+	                "WHERE documentClass = 'class es.codigoandroid.pojos.Recursos' AND META().id = $1 AND _sync IS NOT MISSING";
+	        ParameterizedN1qlQuery query = ParameterizedN1qlQuery.parameterized(queryStr, JsonArray.create().add(todoId));
+	        return bucket.async().query(query)
+	                .flatMap(AsyncN1qlQueryResult::rows)
+	                .map(result -> result.value().toMap())
+	                .toList()
+	                .timeout(10, TimeUnit.SECONDS)
+	                .toBlocking()
+	                .single().get(0);
+	    }
+	    
+	    public static Map<String, Object> getImagenesByIdRecursoIdSendero(final Bucket bucket, String recursoId,String imagenId) {
+	        String queryStr = "SELECT g.* ," + " META().id as RecursoId " +
+	                "FROM `" + bucket.name() + "` t UNNEST t.galeria g " +
+	                "WHERE t.documentClass = 'class es.codigoandroid.pojos.Recursos' AND META().id = $1 AND g.id = $2 AND t._sync IS NOT MISSING";
+	        System.out.println("Query: " + queryStr);
+	        ParameterizedN1qlQuery query = ParameterizedN1qlQuery.parameterized(queryStr, JsonArray.create().add(recursoId).add(imagenId));
 	        return bucket.async().query(query)
 	                .flatMap(AsyncN1qlQueryResult::rows)
 	                .map(result -> result.value().toMap())
