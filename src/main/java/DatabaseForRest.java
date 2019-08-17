@@ -18,7 +18,11 @@ public class DatabaseForRest {
 	    public static Map<String, Object> getById(final Bucket bucket, String todoId) {
 	        String queryStr = "SELECT "+bucket.name()+".*, " +"META("+ bucket.name()+").id " +
 	                "FROM `" + bucket.name() + "` " +
-	                "WHERE documentClass = 'class es.codigoandroid.pojos.Recursos' AND META().id = $1 AND _sync IS NOT MISSING";
+	                "WHERE documentClass = 'class es.codigoandroid.pojos.Recursos' AND META().id = $1 ";
+	        //AND _sync IS NOT MISSING eliminado al final del query para reflejar cambios en couchbase server 6 y sync gateway 2.5
+	        //Antes teninamos 1.4.0-2 ahora tenemos 2.5.1-12 en Agosto 2019.
+	        //Mas info en https://docs.couchbase.com/sync-gateway/2.1/shared-bucket-access.html
+	        //Actualizada en https://docs.couchbase.com/sync-gateway/2.5/shared-bucket-access.html
 	        ParameterizedN1qlQuery query = ParameterizedN1qlQuery.parameterized(queryStr, JsonArray.create().add(todoId));
 	        return bucket.async()
 	        		.query(query)
@@ -35,7 +39,11 @@ public class DatabaseForRest {
 	    public static List<Map<String, Object>> getAll(final Bucket bucket) {
 	        String queryStr = "SELECT "+bucket.name()+".*, " +"META("+ bucket.name()+").id " +
 	                "FROM `" + bucket.name() + "` " +
-	                "WHERE documentClass = 'class es.codigoandroid.pojos.Recursos' AND _sync IS NOT MISSING";
+	                "WHERE documentClass = 'class es.codigoandroid.pojos.Recursos' ";
+	        //AND _sync IS NOT MISSING eliminado al final del query para reflejar cambios en couchbase server 6 y sync gateway 2.5
+	        //Antes teninamos 1.4.0-2 ahora tenemos 2.5.1-12 en Agosto 2019.
+	        //Mas info en https://docs.couchbase.com/sync-gateway/2.1/shared-bucket-access.html
+	        //Actualizada en https://docs.couchbase.com/sync-gateway/2.5/shared-bucket-access.html
 	        return bucket.async().query(N1qlQuery.simple(queryStr))
 	                .flatMap(AsyncN1qlQueryResult::rows)
 	                .map(result -> result.value().toMap())

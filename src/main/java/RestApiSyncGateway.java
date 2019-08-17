@@ -1,6 +1,8 @@
 package main.java;
 
 
+import com.couchbase.client.deps.com.fasterxml.jackson.core.JsonProcessingException;
+import com.couchbase.client.deps.com.fasterxml.jackson.databind.ObjectMapper;
 import com.couchbase.client.java.Bucket;
 import com.couchbase.client.java.Cluster;
 import com.couchbase.client.java.CouchbaseCluster;
@@ -34,6 +36,8 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URI;
+import java.util.ArrayList;
+
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -168,7 +172,7 @@ public class RestApiSyncGateway implements Filter {
     //Sin la capacidad de replicar el sync gateway no tiene sentido, por eso es super importante tener esto en mente.
     @RequestMapping(value="/recursos", method= RequestMethod.GET)
     public Object getAllRecursos() {
-    	System.out.println("Llamando al metodo de traer todos los recursos");
+    	//System.out.println("Llamando al metodo de traer todos los recursos");
         List<Map<String, Object>> recursosEncontrados = DatabaseForRest.getAll(bucket());
         for(Map<String,Object> m:recursosEncontrados)
         	System.out.println(m.values());
@@ -253,8 +257,10 @@ public class RestApiSyncGateway implements Filter {
         }
         
         JsonObject data = jsonData;
-        
+
         data.put("_id", jsonData.get("nombre")).put("documentClass", "class es.codigoandroid.pojos.Recursos");
+        System.out.println("Datos a guardar: " + data);
+        
         JsonObject response = makePostRequest("http://" + gatewayHostname + ":4984/" + gatewayDatabase + "/", data.toString());
         return new ResponseEntity<String>(response.getObject("content").toString(), HttpStatus.valueOf(response.getInt("status")));
     }
@@ -419,6 +425,8 @@ public class RestApiSyncGateway implements Filter {
     
     @RequestMapping(value="/senderos/{senderoId}/{nombreId}", method= RequestMethod.GET)
     public Object getNombreSenderoById(@PathVariable("senderoId") String todoId,@PathVariable("nombreId") String nombreId) {
+    	//System.out.println(DatabaseForRest.getNombreSenderoById(bucket(),todoId,nombreId));
+
         return DatabaseForRest.getNombreSenderoById(bucket(),todoId,nombreId);
     }
     
@@ -426,20 +434,60 @@ public class RestApiSyncGateway implements Filter {
     
     
     @RequestMapping(value="/sendero", method = RequestMethod.POST)
-    public Object createSendero(@RequestBody String json) {
-        JsonObject jsonData = JsonObject.fromJson(json);
+    public Object createSendero(@RequestBody String json) throws JsonProcessingException  {
+    	String revSendero = "";
+    	String idRecurso = "";
+    	System.out.println("Entra al metodo");
+    	JsonObject jsonData = JsonObject.fromJson(json);
+    	System.out.println("Validar los datos");
+
         if(!jsonData.containsKey("descripcion")) {
             return new ResponseEntity<String>(JsonObject.create().put("error", 400).put("message", "El sendero debe tener una descripcion").toString(), HttpStatus.BAD_REQUEST);
         } else if(!jsonData.containsKey("nombre")) {
             return new ResponseEntity<String>(JsonObject.create().put("error", 400).put("message", "El sendero debe tener un nombre").toString(), HttpStatus.BAD_REQUEST);
         }
+        //validar recursoId
         
-        JsonObject data = jsonData;
-        data.put("_id", jsonData.get("nombre")).put("documentClass", "class es.codigoandroid.pojos.Recursos");
-        JsonObject response = makePostRequest("http://" + gatewayHostname + ":4984/" + gatewayDatabase + "/", data.toString());
-        return new ResponseEntity<String>(response.getObject("content").toString(), HttpStatus.valueOf(response.getInt("status")));
+        
+        //senderos ingresado desde la aplicacion
+        System.out.println("Sendero Ingresado: " + jsonData);
+        jsonData.put("_id", jsonData.get("nombre")).put("documentClass", "class es.codigoandroid.pojos.Senderos");
+        //recupero el recurso del sendero mediante el id del sendero ingresado
+        String datosDeRecurso = new ObjectMapper().writeValueAsString(getRecursoById(jsonData.getString("RecursoId")));
+        JsonObject jsonDatosRecurso = JsonObject.fromJson(datosDeRecurso);
+        System.out.println("Datos de Recurso: " + jsonDatosRecurso);
+        
+        //capturar la rev y el id del recurso
+        JsonObject jsonSync = JsonObject.fromJson(jsonDatosRecurso.get("_sync").toString());
+        System.out.println("_sync : " + jsonSync);
+        revSendero = jsonSync.getString("rev");
+        idRecurso = jsonData.getString("RecursoId");
+        System.out.println("rev: " + revSendero + " idRecurso: " + idRecurso);
+        
+        //convertir el json de senderos en Array
+        JsonArray senderosArray = (JsonArray)jsonDatosRecurso.get("sendero");
+        System.out.println("Array de senderos: " + senderosArray);
+        
+        //agrego el sendero ingresado 
+        senderosArray.add(jsonData);
+        
+        System.out.println("Datos + otro sendero: " + senderosArray);
+        
+        //Agregar datos de los senderos 
+        jsonData.removeKey("RecursoId");
+        if(jsonDatosRecurso.containsKey("_sync"))
+        {
+        	jsonDatosRecurso.removeKey("_sync");
+        }
+        
+        jsonDatosRecurso.put("sendero", senderosArray);
+        System.out.println("Recurso Listo con los senderos: " + jsonDatosRecurso);
+        
+        //Elimino el Sendero Anterior
+        deleteRecurso(revSendero,idRecurso);
+        return createRecurso(jsonDatosRecurso.toString());
     }
-    
+
     @RequestMapping(value="/senderos", method= RequestMethod.PUT)
     public Object updateSendero(@RequestBody String json) {
     	System.out.println("Entro a put request de sendero");
